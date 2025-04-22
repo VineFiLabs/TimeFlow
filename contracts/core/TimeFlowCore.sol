@@ -47,8 +47,7 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         uint64 _amount,
         uint128 _price
     ) external nonReentrant {
-        uint256 endTime = _getMarketConfig().endTime;
-        if(block.timestamp - 12 hours >= endTime){revert OrderAlreadyClose(block.timestamp);}
+        _checkOrderCloseState();
         if(_orderType == OrderType.buy){
             if(_price >= latestMinSellPrice && latestMinSellPrice != 0){revert InvalidPrice(latestMinSellPrice);}
             orderInfo[orderId].state = OrderState.buying;
@@ -84,8 +83,7 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         uint128 _price,
         uint256[] calldata orderIds
     ) external nonReentrant {
-        uint256 endTime = _getMarketConfig().endTime;
-        if(block.timestamp - 12 hours >= endTime){revert OrderAlreadyClose(block.timestamp);}
+        _checkOrderCloseState();
         uint256 collateralTokenAmount;
         uint64 waitTokenAmount;
         unchecked{
@@ -136,7 +134,6 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
                     orderInfo[orderIds[i]].trader = msg.sender;
                     waitTokenAmount += remainAmount;
                     collateralTokenAmount += remainAmount * currentPrice;
-                    emit MatchOrder(orderIds[i], _orderType);
                 }
             }
         }
@@ -151,12 +148,12 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         }else{
             userInfo[msg.sender].sellDoneAmount += waitTokenAmount;
         }
+        emit MatchOrders(orderIds, _orderType);
         
     }
 
     function Cancel(uint256[] calldata orderIds) external nonReentrant {
-        uint256 endTime = _getMarketConfig().endTime;
-        if(block.timestamp - 12 hours >= endTime){revert OrderAlreadyClose(block.timestamp);}
+        _checkOrderCloseState();
         uint256 cancelCollateralTokenAmount;
         unchecked {
             for(uint256 i; i<orderIds.length; i++){
@@ -165,7 +162,6 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
                         uint256 remainAmount = orderInfo[orderIds[i]].amount - orderInfo[orderIds[i]].doneAmount;
                         if(remainAmount >0){
                             cancelCollateralTokenAmount += remainAmount * orderInfo[orderIds[i]].price;
-                            emit CancelOrder(orderIds[i]);
                         }
                         orderInfo[orderIds[i]].state = OrderState.fail;
                     }
@@ -178,6 +174,7 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         uint256 fee = cancelCollateralTokenAmount * 5 / 1000;
         IERC20(collateral).safeTransfer(msg.sender, cancelCollateralTokenAmount - fee);
         _safeTransferFee(collateral, fee);
+        emit CancelOrders(orderIds);
     }
 
     function deposite(uint256[] calldata orderIds) external nonReentrant {
@@ -204,11 +201,11 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         if(waitTokenAmount ==0){revert ZeroQuantity();}
         address waitToken = _getMarketConfig().waitToken;
         IERC20(waitToken).safeTransferFrom(msg.sender, address(this), waitTokenAmount);
+        emit DepositeOrders(orderIds);
     }
 
     function refund(uint256[] calldata orderIds) external nonReentrant {
-        uint256 endTime = _getMarketConfig().endTime;
-        if(endTime == 0 || block.timestamp <= endTime){revert NotEnd(block.timestamp);}
+        _checkOrderEndState();
         address collateral = _getMarketConfig().collateral;
         uint256 refundAmount;
         unchecked {
@@ -223,11 +220,11 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         }
         if(refundAmount == 0){revert ZeroQuantity();}
         IERC20(collateral).safeTransfer(msg.sender, refundAmount);
+        emit RefundOrders(orderIds);
     }
 
     function withdraw(OrderType orderType, uint256[] calldata orderIds) external nonReentrant {
-        uint256 endTime = _getMarketConfig().endTime;
-        if(endTime == 0 || block.timestamp <= endTime){revert NotEnd(block.timestamp);}
+        _checkOrderEndState();
         address waitToken = _getMarketConfig().waitToken;
         address collateral = _getMarketConfig().collateral;
         uint8 tokenDecimals = _collateralDecimals(collateral);
@@ -276,7 +273,7 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
                         }
                     }
                 }else {
-                    revert("Invalid user");
+                    revert InvalidUser();
                 }
             }
         }
@@ -289,11 +286,11 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
             IERC20(collateral).safeTransfer(msg.sender, collateralTokenAmount * 2 - fee);
             _safeTransferFee(collateral, fee);
         }
+        emit WithdrawOrders(orderIds);
     }
 
     function withdrawLiquidatedDamages(uint256[] calldata orderIds) external {
-        uint256 endTime = _getMarketConfig().endTime;
-        if(endTime == 0 || block.timestamp <= endTime){revert NotEnd(block.timestamp);}
+        _checkOrderEndState();
         address collateral = _getMarketConfig().collateral;
         uint8 tokenDecimals = _collateralDecimals(collateral);
         uint256 liquidatedDamagesAmount;
@@ -312,7 +309,7 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
                         }
                     }
                 }else{
-                    revert("Invalid user");
+                    revert InvalidUser();
                 }
                 liquidatedDamagesAmount += orderInfo[orderIds[i]].amount * orderInfo[orderIds[i]].price;
             }
@@ -321,6 +318,7 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         uint256 fee = TimeFlowLibrary._fee(liquidatedDamagesAmount, tokenDecimals);
         IERC20(collateral).safeTransfer(msg.sender, liquidatedDamagesAmount * 2 - fee);
         _safeTransferFee(collateral, fee);
+        emit WithdrawLiquidatedDamages(orderIds);
     }
 
     function _getMarketConfig() private view returns(IGovernance.MarketConfig memory) {
@@ -344,6 +342,15 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         IERC20(collateral).safeTransfer(dust, dustFee);
         //transfer to feeReceiver
         IERC20(collateral).safeTransfer(feeReceiver, protocolFee);
+    }
+
+    function _checkOrderCloseState() private view {
+        if(block.timestamp - 12 hours >= _getMarketConfig().endTime){revert OrderAlreadyClose(block.timestamp);}
+    }
+
+    function _checkOrderEndState() private view {
+        uint256 endTime = _getMarketConfig().endTime;
+        if(endTime == 0 || block.timestamp <= endTime){revert NotEnd(block.timestamp);}
     }
 
     function getOrderInfo(uint256 thisOrderId) external view returns(OrderInfo memory) {

@@ -15,10 +15,12 @@ contract TimeFlowHelper {
     bytes1 private immutable ONEBYTES1 = 0x01;
     address public governance;
     address public timeFlowFactory;
+    address public owner;
 
     constructor(address _governance, address _timeFlowFactory){
         governance = _governance;
         timeFlowFactory = _timeFlowFactory;
+        owner = msg.sender;
     }
 
     enum OrderCurrentState{
@@ -30,6 +32,12 @@ contract TimeFlowHelper {
         done
     }
 
+    function changeConfig(address _governance, address _timeFlowFactory) external {
+        require(msg.sender == owner, "Non owner");
+        governance = _governance;
+        timeFlowFactory = _timeFlowFactory;
+    }
+
     function getLastestOrderId(uint256 marketId) public view returns(uint256){
         address market = _getMarket(marketId);
         return ITimeFlowCore(market).orderId();
@@ -38,6 +46,21 @@ contract TimeFlowHelper {
     function getLastestMarketId() public view returns(uint256){
         return ITimeFlowFactory(timeFlowFactory).marketId();
     } 
+
+    function getOrdersInfo(uint256 marketId, uint256[] calldata orderIds) external view returns(
+        OrderCurrentState[] memory orderCurrentStateGroup,
+        ITimeFlowCore.OrderInfo[] memory orderInfoGroup
+    ){
+        uint256 len = orderIds.length;
+        orderInfoGroup = new ITimeFlowCore.OrderInfo[](len);
+        orderCurrentStateGroup = new OrderCurrentState[](len);
+        unchecked {
+            for(uint256 i; i<len; i++){
+                orderCurrentStateGroup[i] = getOrderState(marketId, orderIds[i]);
+                orderInfoGroup[i] = getOrderInfo(marketId, orderIds[i]);
+            }
+        }
+    }
 
     function getMarketInfo(
         uint256 pageIndex
@@ -200,7 +223,7 @@ contract TimeFlowHelper {
     function getOrderState(
         uint256 marketId, 
         uint256 orderId
-    ) external view returns(OrderCurrentState state) {
+    ) public view returns(OrderCurrentState state) {
         ITimeFlowCore.OrderInfo memory newOrderInfo = getOrderInfo(marketId, orderId);
         uint256 endTime = _getEndTime(marketId); 
         if(endTime == 0 || block.timestamp <= endTime){

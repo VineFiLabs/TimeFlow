@@ -4,8 +4,13 @@ pragma solidity ^0.8.23;
 interface IDustCore{
 
     enum FlowWay{
-        transfer,
+        doTransfer,
         flow
+    }
+
+    enum UserFlowState{
+        sendFlow,
+        receiveFlow
     }
 
     struct DustCollateralInfo {
@@ -25,7 +30,7 @@ interface IDustCore{
         uint128 doneAmount;
     } 
     
-    event Initialize(address indexed dustToken, bytes1 state);
+    event Initialize(bytes1 state);
     event LockEvent(bytes1 state);
     event Flow(FlowWay indexed way, address indexed sender, address receiver, uint256 amount);
 

@@ -5,26 +5,17 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
-contract Dust is Context, IERC20, IERC20Metadata, IERC20Errors {
+
+abstract contract Dust is Context, IERC20, IERC20Metadata, IERC20Errors {
 
     string private _name = "Dust Stablecoin";
     string private _symbol = "DUST";
-    address private dustCore;
 
     mapping(address account => uint256) private _balances;
 
     mapping(address account => mapping(address spender => uint256)) private _allowances;
 
     uint256 private _totalSupply;
-
-    constructor(address _dustCore){
-        dustCore = _dustCore;
-    }
-
-    modifier onlyCaller{
-        require(msg.sender == dustCore, "Non caller");
-        _;
-    }
 
     /**
      * @dev Returns the name of the token.
@@ -70,16 +61,6 @@ contract Dust is Context, IERC20, IERC20Metadata, IERC20Errors {
      */
     function balanceOf(address account) public view returns (uint256) {
         return _balances[account];
-    }
-
-    /**
-     * @notice Only Governance can be invoked to mint tokens for a certain address, 
-     * with a maximum of 100_000_000 * 10 ** decimals() tokens minted at a time 
-     */
-    function depositeMint(address receiver, uint256 amount) public onlyCaller returns(bool) {
-        require(amount <= 100_000_000 * 10 ** decimals(), "Exceed the limit");
-        _mint(receiver, amount);
-        return true;
     }
 
     /**
@@ -215,7 +196,7 @@ contract Dust is Context, IERC20, IERC20Metadata, IERC20Errors {
      *
      * NOTE: This function is not virtual, {_update} should be overridden instead.
      */
-    function _mint(address account, uint256 value) internal {
+    function _mint(address account, uint256 value) internal returns(bool) {
         if (account == address(0)) {
             revert ERC20InvalidReceiver(address(0));
         }

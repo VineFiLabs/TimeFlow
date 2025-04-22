@@ -37,16 +37,19 @@ interface ITimeFlowCore {
         uint256[] sellIdGroup;
     }
 
-    
-    event UpdateEndTimeEvent(uint256 indexed time);
     event CreateOrder(uint256 indexed id, address creator, uint256 total);
-    event MatchOrder(uint256 indexed id, OrderType thisOrderType);
-    event CancelOrder(uint256 indexed id);
+    event MatchOrders(uint256[] indexed ids, OrderType thisOrderType);
+    event CancelOrders(uint256[] indexed ids);
+    event DepositeOrders(uint256[] indexed ids);
+    event RefundOrders(uint256[] indexed ids);
+    event WithdrawOrders(uint256[] indexed ids);
+    event WithdrawLiquidatedDamages(uint256[] indexed ids);
 
     error InvalidPrice(uint128);
     error ZeroQuantity();
     error OrderAlreadyClose(uint256);
     error NotEnd(uint256);
+    error InvalidUser();
 
     function currentMarketId() external view returns(uint256);
     function orderId() external view returns(uint256);

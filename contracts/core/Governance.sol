@@ -74,6 +74,13 @@ contract Governance is IGovernance {
         marketConfig[_marketId].initializeState = true;
     }
 
+    function changeCollateral(
+        uint256 _marketId, 
+        address _collateral
+    ) external onlyManager {
+        marketConfig[_marketId].collateral = _collateral;
+    }
+
     function setMarketConfig(
         uint256 _marketId, 
         uint256 _endTime,
