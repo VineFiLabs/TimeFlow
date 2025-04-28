@@ -19,10 +19,10 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
     address public governance;
     address public manager;
 
-    uint128 public latestMaxBuyPrice;
-    uint128 public latestMinSellPrice;
-    uint128 public latestMaxDoneBuyPrice;
-    uint128 public latestMaxDoneSellPrice;
+    uint64 public latestMaxBuyPrice;
+    uint64 public latestMinSellPrice;
+    uint64 public latestMaxDoneBuyPrice;
+    uint64 public latestMaxDoneSellPrice;
 
     constructor(
         address _governance,
@@ -44,19 +44,17 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
 
     function putTrade(
         OrderType _orderType,
-        uint64 _amount,
-        uint128 _price
+        uint128 _amount,
+        uint64 _price
     ) external nonReentrant {
         _checkOrderCloseState();
         if(_orderType == OrderType.buy){
-            if(_price >= latestMinSellPrice && latestMinSellPrice != 0){revert InvalidPrice(latestMinSellPrice);}
             orderInfo[orderId].state = OrderState.buying;
             userInfo[msg.sender].buyIdGroup.push(orderId);
             if(_price > latestMaxBuyPrice){
                 latestMaxBuyPrice = _price;
             }
         }else {
-            if(_price <= latestMaxBuyPrice && latestMaxBuyPrice != 0){revert InvalidPrice(latestMaxBuyPrice);}
             orderInfo[orderId].state = OrderState.selling;
             userInfo[msg.sender].sellIdGroup.push(orderId);
             if(_price < latestMinSellPrice){
@@ -64,43 +62,44 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
             }
         }
         orderInfo[orderId].orderType = _orderType;
-        uint256 total = _amount * _price;
+        uint256 total = TimeFlowLibrary._getTotalCollateral(_price, _amount);
         address collateral = _getMarketConfig().collateral;
-        require(total >= 10 * 10 ** _collateralDecimals(collateral));
+        require(total >= 10 * 10 ** _collateralDecimals(collateral), "Less than 10$");
         IERC20(collateral).safeTransferFrom(msg.sender, address(this), total);
         orderInfo[orderId].amount = _amount;
         orderInfo[orderId].price = _price;
         orderInfo[orderId].creator = msg.sender;
         orderInfo[orderId].creationTime = block.timestamp;
-
+        _join();
         emit CreateOrder(orderId, msg.sender, total);
         orderId++;
     }
 
     function matchTrade(
         OrderType _orderType,
-        uint64 _amount,
-        uint128 _price,
+        uint128 _amount,
+        uint64 _price,
         uint256[] calldata orderIds
     ) external nonReentrant {
         _checkOrderCloseState();
         uint256 collateralTokenAmount;
-        uint64 waitTokenAmount;
+        uint256 totalFee;
+        uint128 waitTokenAmount;
+        address collateral = _getMarketConfig().collateral;
         unchecked{
             for(uint256 i; i<orderIds.length; i++){
-                uint64 remainAmount;
-                uint128 currentPrice = orderInfo[orderIds[i]].price;
+                uint128 remainAmount;
+                uint64 currentPrice = orderInfo[orderIds[i]].price;
                 address creator = orderInfo[orderIds[i]].creator;
                 //buy
                 if(_orderType == OrderType.buy){
                     if(orderInfo[orderIds[i]].state == OrderState.selling){
                         if(currentPrice <= _price){
                             remainAmount = orderInfo[orderIds[i]].amount - orderInfo[orderIds[i]].doneAmount;
-                            if(remainAmount == 0){
-                                orderInfo[orderIds[i]].doneAmount = orderInfo[orderIds[i]].amount;
-                            }else {
+                            if(remainAmount > 0){
                                 userInfo[msg.sender].buyIdGroup.push(orderIds[i]);
                                 userInfo[creator].sellDoneAmount += remainAmount;
+                                totalFee += TimeFlowLibrary._fee(remainAmount, _collateralDecimals(collateral));
                                 if(currentPrice > latestMaxDoneSellPrice){
                                     latestMaxDoneSellPrice = currentPrice;
                                 }
@@ -112,9 +111,7 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
                     if(orderInfo[orderIds[i]].state == OrderState.buying){
                         if(currentPrice >= _price){
                             remainAmount = orderInfo[orderIds[i]].amount - orderInfo[orderIds[i]].doneAmount;
-                            if(remainAmount == 0){
-                                orderInfo[orderIds[i]].doneAmount = orderInfo[orderIds[i]].amount;
-                            }else{
+                            if(remainAmount > 0){
                                 userInfo[msg.sender].sellIdGroup.push(orderIds[i]);
                                 userInfo[creator].buyDoneAmount += remainAmount;
                                 if(currentPrice > latestMaxDoneBuyPrice){
@@ -128,23 +125,21 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
                     if(remainAmount > _amount - waitTokenAmount){
                         orderInfo[orderIds[i]].doneAmount += _amount - waitTokenAmount;
                     }else{
-                        orderInfo[orderIds[i]].doneAmount = orderInfo[orderIds[i]].amount;
+                        orderInfo[orderIds[i]].doneAmount += remainAmount;
                         orderInfo[orderIds[i]].state = OrderState.found;
                     }
                     orderInfo[orderIds[i]].trader = msg.sender;
                     waitTokenAmount += remainAmount;
-                    collateralTokenAmount += remainAmount * currentPrice;
+                    collateralTokenAmount += TimeFlowLibrary._getTotalCollateral(currentPrice, remainAmount);
                 }
             }
         }
         if(waitTokenAmount == 0){revert ZeroQuantity();}
-        address collateral = _getMarketConfig().collateral;
-        uint256 fee = TimeFlowLibrary._fee(collateralTokenAmount, _collateralDecimals(collateral));
         IERC20(collateral).safeTransferFrom(msg.sender, address(this), collateralTokenAmount);
-        
+        _join();
         if(_orderType == OrderType.buy){
             userInfo[msg.sender].buyDoneAmount += waitTokenAmount;
-            _safeTransferFee(collateral, fee);
+            _safeTransferFee(collateral, totalFee);
         }else{
             userInfo[msg.sender].sellDoneAmount += waitTokenAmount;
         }
@@ -159,9 +154,9 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
             for(uint256 i; i<orderIds.length; i++){
                 if(msg.sender == orderInfo[orderIds[i]].creator){
                     if(orderInfo[orderIds[i]].state == OrderState.buying || orderInfo[orderIds[i]].state == OrderState.selling){
-                        uint256 remainAmount = orderInfo[orderIds[i]].amount - orderInfo[orderIds[i]].doneAmount;
+                        uint128 remainAmount = orderInfo[orderIds[i]].amount - orderInfo[orderIds[i]].doneAmount;
                         if(remainAmount >0){
-                            cancelCollateralTokenAmount += remainAmount * orderInfo[orderIds[i]].price;
+                            cancelCollateralTokenAmount += TimeFlowLibrary._getTotalCollateral(orderInfo[orderIds[i]].price, remainAmount);
                         }
                         orderInfo[orderIds[i]].state = OrderState.fail;
                     }
@@ -212,8 +207,13 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
             for(uint256 i; i< orderIds.length; i++){
                 if(msg.sender == orderInfo[orderIds[i]].creator){
                     if(orderInfo[orderIds[i]].state == OrderState.buying || orderInfo[orderIds[i]].state == OrderState.selling){
-                        refundAmount += orderInfo[orderIds[i]].amount * orderInfo[orderIds[i]].price;
-                        orderInfo[orderIds[i]].state = OrderState.fail;
+                        if(orderInfo[orderIds[i]].creatorWithdrawState == ZEROBYTES1){
+                            refundAmount += TimeFlowLibrary._getTotalCollateral(
+                                orderInfo[orderIds[i]].price, 
+                                orderInfo[orderIds[i]].amount - orderInfo[orderIds[i]].doneAmount
+                            );
+                            orderInfo[orderIds[i]].creatorWithdrawState = ONEBYTES1;
+                        }
                     }
                 }
             }
@@ -228,10 +228,13 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         address waitToken = _getMarketConfig().waitToken;
         address collateral = _getMarketConfig().collateral;
         uint8 tokenDecimals = _collateralDecimals(collateral);
+        uint256 totalFee;
         uint256 collateralTokenAmount;
         uint256 waitTokenAmount;
         unchecked {
             for(uint256 i; i< orderIds.length; i++){
+                uint128 amount = orderInfo[orderIds[i]].amount;
+                uint256 thisTotalAmount = TimeFlowLibrary._getTotalCollateral(orderInfo[orderIds[i]].price, amount);
                 if(msg.sender == orderInfo[orderIds[i]].creator){
                     if(
                         orderType == OrderType.buy && 
@@ -239,7 +242,7 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
                         orderInfo[orderIds[i]].state == OrderState.done
                     ){
                         if(orderInfo[orderIds[i]].creatorWithdrawState == ZEROBYTES1){
-                            waitTokenAmount += orderInfo[orderIds[i]].amount;
+                            waitTokenAmount += amount;
                             orderInfo[orderIds[i]].creatorWithdrawState = ONEBYTES1;
                         }
                     } else if(
@@ -248,27 +251,29 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
                         orderInfo[orderIds[i]].state == OrderState.done
                     ){
                         if(orderInfo[orderIds[i]].creatorWithdrawState == ZEROBYTES1){
-                            collateralTokenAmount += orderInfo[orderIds[i]].amount * orderInfo[orderIds[i]].price;
+                            collateralTokenAmount += thisTotalAmount;
+                            totalFee += TimeFlowLibrary._fee(thisTotalAmount, tokenDecimals);
                             orderInfo[orderIds[i]].creatorWithdrawState = ONEBYTES1;
                         }
                     }
                 }else if (msg.sender == orderInfo[orderIds[i]].trader){
                     if(
                         orderType == OrderType.buy && 
-                        orderInfo[orderIds[i]].orderType == orderType && 
+                        orderInfo[orderIds[i]].orderType == OrderType.sell && 
                         orderInfo[orderIds[i]].state == OrderState.done
                     ){
                         if(orderInfo[orderIds[i]].traderWithdrawState == ZEROBYTES1){
-                            collateralTokenAmount += orderInfo[orderIds[i]].amount * orderInfo[orderIds[i]].price;
+                            waitTokenAmount += amount;
                             orderInfo[orderIds[i]].traderWithdrawState = ONEBYTES1;
                         }
                     } else if(
                         orderType == OrderType.sell && 
-                        orderInfo[orderIds[i]].orderType == orderType && 
+                        orderInfo[orderIds[i]].orderType == OrderType.buy && 
                         orderInfo[orderIds[i]].state == OrderState.done
                     ){
                         if(orderInfo[orderIds[i]].traderWithdrawState == ZEROBYTES1){
-                            waitTokenAmount += orderInfo[orderIds[i]].amount;
+                            collateralTokenAmount += thisTotalAmount;
+                            totalFee += TimeFlowLibrary._fee(thisTotalAmount, tokenDecimals);
                             orderInfo[orderIds[i]].traderWithdrawState = ONEBYTES1;
                         }
                     }
@@ -277,14 +282,15 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
                 }
             }
         }
-        if(waitTokenAmount == 0 || collateralTokenAmount == 0){revert ZeroQuantity();}
+       
         if(orderType == OrderType.buy){
+            if(waitTokenAmount == 0){revert ZeroQuantity();}
             IERC20(waitToken).safeTransfer(msg.sender, waitTokenAmount);
         // sell pay fee
         }else{
-            uint256 fee = TimeFlowLibrary._fee(collateralTokenAmount, tokenDecimals);
-            IERC20(collateral).safeTransfer(msg.sender, collateralTokenAmount * 2 - fee);
-            _safeTransferFee(collateral, fee);
+            if(collateralTokenAmount == 0){revert ZeroQuantity();}
+            IERC20(collateral).safeTransfer(msg.sender, collateralTokenAmount * 2 - totalFee);
+            _safeTransferFee(collateral, totalFee);
         }
         emit WithdrawOrders(orderIds);
     }
@@ -294,30 +300,38 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         address collateral = _getMarketConfig().collateral;
         uint8 tokenDecimals = _collateralDecimals(collateral);
         uint256 liquidatedDamagesAmount;
+        uint256 totalFee;
         unchecked {
             for(uint256 i; i< orderIds.length; i++){
+                uint256 thisTotalAmount = TimeFlowLibrary._getTotalCollateral(orderInfo[orderIds[i]].price, orderInfo[orderIds[i]].amount);
                 if(msg.sender == orderInfo[orderIds[i]].creator){
                     if(orderInfo[orderIds[i]].state == OrderState.found){
                         if(orderInfo[orderIds[i]].orderType == OrderType.buy){
-                            orderInfo[orderIds[i]].state = OrderState.fail;
+                            if(orderInfo[orderIds[i]].creatorWithdrawState == ZEROBYTES1){
+                                liquidatedDamagesAmount += thisTotalAmount;
+                                totalFee += TimeFlowLibrary._fee(thisTotalAmount, tokenDecimals);
+                                orderInfo[orderIds[i]].creatorWithdrawState = ONEBYTES1; 
+                            }
                         }
                     }
                 }else if(msg.sender == orderInfo[orderIds[i]].trader){
                     if(orderInfo[orderIds[i]].state == OrderState.found){
                         if(orderInfo[orderIds[i]].orderType == OrderType.sell){
-                            orderInfo[orderIds[i]].state = OrderState.fail;
+                            if(orderInfo[orderIds[i]].traderWithdrawState == ZEROBYTES1){
+                                liquidatedDamagesAmount += thisTotalAmount;
+                                totalFee += TimeFlowLibrary._fee(thisTotalAmount, tokenDecimals);
+                                orderInfo[orderIds[i]].traderWithdrawState = ONEBYTES1;
+                            }
                         }
                     }
                 }else{
                     revert InvalidUser();
                 }
-                liquidatedDamagesAmount += orderInfo[orderIds[i]].amount * orderInfo[orderIds[i]].price;
             }
         }
         if(liquidatedDamagesAmount == 0){revert ZeroQuantity();}
-        uint256 fee = TimeFlowLibrary._fee(liquidatedDamagesAmount, tokenDecimals);
-        IERC20(collateral).safeTransfer(msg.sender, liquidatedDamagesAmount * 2 - fee);
-        _safeTransferFee(collateral, fee);
+        IERC20(collateral).safeTransfer(msg.sender, liquidatedDamagesAmount * 2 - totalFee);
+        _safeTransferFee(collateral, totalFee);
         emit WithdrawLiquidatedDamages(orderIds);
     }
 
@@ -345,7 +359,7 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
     }
 
     function _checkOrderCloseState() private view {
-        if(block.timestamp - 12 hours >= _getMarketConfig().endTime){revert OrderAlreadyClose(block.timestamp);}
+        if(block.timestamp + 12 hours >= _getMarketConfig().endTime){revert OrderAlreadyClose(block.timestamp);}
     }
 
     function _checkOrderEndState() private view {
@@ -353,13 +367,17 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         if(endTime == 0 || block.timestamp <= endTime){revert NotEnd(block.timestamp);}
     }
 
+    function _join() private {
+        IGovernance(governance).join(msg.sender, currentMarketId);
+    }
+
     function getOrderInfo(uint256 thisOrderId) external view returns(OrderInfo memory) {
         return orderInfo[thisOrderId];
     }
 
     function getUserInfo(address user) external view returns (
-        uint64 thisBuyDoneAmount,
-        uint64 thisSellDoneAmount
+        uint128 thisBuyDoneAmount,
+        uint128 thisSellDoneAmount
     ){
         thisBuyDoneAmount = userInfo[user].buyDoneAmount;
         thisSellDoneAmount = userInfo[user].sellDoneAmount;
@@ -380,8 +398,5 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
     function getUserSellIdsLength(address user) external view returns(uint256) {
         return userInfo[user].sellIdGroup.length;
     }
-
-    
-
     
 }

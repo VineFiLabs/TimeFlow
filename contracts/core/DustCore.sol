@@ -72,7 +72,7 @@ contract DustCore is Dust, ReentrancyGuard, IDustCore {
         address collateral,
         uint128 amount,
         uint128 price
-    ) external Lock {
+    ) external Lock nonReentrant {
         require(
             dustCollateralInfo[collateral].activeState == ONEBYTES1,
             "Invalid collateral"
@@ -85,14 +85,14 @@ contract DustCore is Dust, ReentrancyGuard, IDustCore {
             price
         );
         // uint256 mintAmount = amount;
-        _mint(msg.sender, mintAmount);
+        require(_mint(msg.sender, mintAmount), "Mint fail");
     }
 
     function refund(
         address collateral,
         uint128 amount,
         uint128 price
-    ) external {
+    ) external nonReentrant {
         uint8 collateralDecimals = getTokenDecimals(collateral);
         uint256 collateralBalance = getUserTokenbalance(
             collateral,
@@ -105,9 +105,8 @@ contract DustCore is Dust, ReentrancyGuard, IDustCore {
             collateralBalance
         );
 
-        // uint256 withdrawCollateralAmount = amount;
-        _burn(msg.sender, withdrawCollateralAmount);
         IERC20(collateral).safeTransfer(msg.sender, withdrawCollateralAmount);
+        require(_burn(msg.sender, withdrawCollateralAmount), "Burn fail");
     }
 
     function liquidate(
@@ -126,26 +125,28 @@ contract DustCore is Dust, ReentrancyGuard, IDustCore {
         uint64 thisEndTime = currentTime + endTime;
         require(receiver != address(0) && receiver != address(this), "Invalid receiver");
         if (way == FlowWay.doTransfer) {
-
+            require(_burn(msg.sender, amount), "Burn fail");
+            require(_mint(receiver, amount), "Mint fail");
         } else if (way == FlowWay.flow) {
             require(amount >= 10 ** 18, "At least 10 ** 18 dust");
             require(thisEndTime - 60 >= currentTime, "Invalid endTime");
             userFlowId[msg.sender][UserFlowState.sendFlow].push(flowId);
             userFlowId[receiver][UserFlowState.receiveFlow].push(flowId);
+            require(_burn(msg.sender, amount), "Burn fail");
+            dustFlowInfo[flowId] = DustFlowInfo({
+                way: way,
+                sender: msg.sender,
+                receiver: receiver,
+                startTime: currentTime,
+                endTime: thisEndTime,
+                amount: amount,
+                doneAmount: 0,
+                lastestWithdrawTime: 0
+            });
             flowId++;
         } else {
             revert("Invalid way");
         }
-        _burn(msg.sender, amount);
-        dustFlowInfo[flowId] = DustFlowInfo({
-            way: way,
-            sender: msg.sender,
-            receiver: receiver,
-            startTime: currentTime,
-            endTime: thisEndTime,
-            amount: amount,
-            doneAmount: 0
-        });
         emit Flow(way, msg.sender, receiver, amount);
     }
 
@@ -155,6 +156,8 @@ contract DustCore is Dust, ReentrancyGuard, IDustCore {
         uint128 withdrawAmount = getReceiveAmount(id);
         require(withdrawAmount > 0, "All completed");
         dustFlowInfo[id].doneAmount += withdrawAmount;
+        dustFlowInfo[id].lastestWithdrawTime = block.timestamp;
+        require(dustFlowInfo[id].doneAmount <= dustFlowInfo[id].amount, "Amount overflow");
         require(_mint(receiver, withdrawAmount), "Mint fail");
     }
 
@@ -247,13 +250,25 @@ contract DustCore is Dust, ReentrancyGuard, IDustCore {
         uint64 endTime = dustFlowInfo[id].endTime;
         uint128 amount = dustFlowInfo[id].amount;
         uint128 doneAmount = dustFlowInfo[id].doneAmount;
-        uint128 quantityPerSecond = amount / (endTime - startTime);
-        if (block.timestamp >= endTime) {
-            remainAmount = amount - doneAmount;
-        } else {
-            remainAmount =
-                uint128(block.timestamp - startTime) *
-                quantityPerSecond;
+        uint256 lastestWithdrawTime = dustFlowInfo[id].lastestWithdrawTime;
+        if(endTime - startTime > 0){
+            if(amount >= doneAmount){
+                uint128 quantityPerSecond = amount / (endTime - startTime);
+                if (block.timestamp >= endTime) {
+                    remainAmount = amount - doneAmount;
+                } else {
+                    if(lastestWithdrawTime == 0){
+                        remainAmount = uint128((block.timestamp - startTime) *
+                        quantityPerSecond);
+                    }else{
+                        if(lastestWithdrawTime > startTime && lastestWithdrawTime < endTime) {
+                            remainAmount = uint128((block.timestamp - lastestWithdrawTime) *
+                        quantityPerSecond);
+                        }
+                    }
+                    
+                }
+            }
         }
     }
 
@@ -288,7 +303,10 @@ contract DustCore is Dust, ReentrancyGuard, IDustCore {
         UserFlowState state,
         address user,
         uint256 pageIndex
-    ) external view returns (DustFlowInfo[] memory dustFlowInfoGroup) {
+    ) external view returns (
+        DustFlowInfo[] memory dustFlowInfoGroup,
+        uint128[] memory receiveAmountGroup
+    ) {
         uint256 flowIdsLength = userFlowId[user][state].length;
         if (flowIdsLength > 0) {
             uint256 len;
@@ -307,11 +325,13 @@ contract DustCore is Dust, ReentrancyGuard, IDustCore {
                 }
             }
             dustFlowInfoGroup = new DustFlowInfo[](len);
+            receiveAmountGroup = new uint128[](len);
             unchecked {
                 for (uint256 i; i < len; i++) {
                     dustFlowInfoGroup[i] = dustFlowInfo[
                         currentUserFlowId
                     ];
+                    receiveAmountGroup[i] = getReceiveAmount(currentUserFlowId);
                     currentUserFlowId++;
                 }
             }

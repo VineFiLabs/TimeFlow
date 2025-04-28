@@ -134,24 +134,52 @@ contract TimeFlowHelper {
     }
 
     function getMarketUserInfo(uint256 marketId, address user) external view returns(
-        uint64 buyDoneAmount,
-        uint64 sellDoneAmount
+        uint128 buyDoneAmount,
+        uint128 sellDoneAmount
     ){
         address market = _getMarket(marketId);
         (buyDoneAmount, sellDoneAmount) = ITimeFlowCore(market).getUserInfo(user);
     }
 
     function getMarketLastestPriceInfo(uint256 marketId) external view returns(
-        uint128 thisLatestMaxBuyPrice,
-        uint128 thisLatestMinSellPrice,
-        uint128 thisLatestMaxDoneBuyPrice,
-        uint128 thisLatestMaxDoneSellPrice
+        uint64 thisLatestMaxBuyPrice,
+        uint64 thisLatestMinSellPrice,
+        uint64 thisLatestMaxDoneBuyPrice,
+        uint64 thisLatestMaxDoneSellPrice
     ){
         address market = _getMarket(marketId);
         thisLatestMaxBuyPrice = ITimeFlowCore(market).latestMaxBuyPrice();
         thisLatestMinSellPrice = ITimeFlowCore(market).latestMinSellPrice();
         thisLatestMaxDoneBuyPrice = ITimeFlowCore(market).latestMaxDoneBuyPrice();
         thisLatestMaxDoneSellPrice = ITimeFlowCore(market).latestMaxDoneSellPrice();
+    }
+
+    function getUserJoinMarkets(address user, uint256 pageIndex) external view returns(uint256[] memory marketIds) {
+         uint256 joinMarketLen = IGovernance(governance).getUserJoinMarketLength(user);
+        if(joinMarketLen > 0){
+            require(pageIndex <= joinMarketLen / 10, "Page index overflow");
+            uint256 len;
+            uint256 indexId;
+            if(joinMarketLen <= 10){
+                len = joinMarketLen;
+            }else {
+                if(joinMarketLen % 10 == 0){
+                    len = 10;
+                }else{
+                    len = joinMarketLen % 10;
+                }
+                if(pageIndex !=0 ){
+                    indexId = pageIndex * 10;
+                }
+            }
+            marketIds = new uint256[](len);
+            unchecked {
+                for(uint256 i; i<len; i++){
+                    marketIds[i] = IGovernance(governance).indexUserJoinInfoGroup(user, indexId);
+                    indexId++;
+                }
+            }
+        }
     }
 
     function indexUserBuyIds(
@@ -234,7 +262,10 @@ contract TimeFlowHelper {
                 state = OrderCurrentState.trading;
             }else if(newOrderInfo.state == ITimeFlowCore.OrderState.found){
                 state = OrderCurrentState.found;
-            }else {
+            }else if(newOrderInfo.state == ITimeFlowCore.OrderState.done){
+                state = OrderCurrentState.done;
+            }
+            else{
                 state = OrderCurrentState.inexistence;
             }
         }else{
@@ -291,13 +322,16 @@ contract TimeFlowHelper {
             unchecked{
                 for(uint256 i; i<orderIds.length; i++){
                     ITimeFlowCore.OrderInfo memory newOrderInfo = getOrderInfo(marketId, orderIds[i]);
-                    uint64 remainAmount;
-                    uint128 currentPrice = newOrderInfo.price;
+                    uint64 currentPrice = newOrderInfo.price;
+                    uint128 remainAmount;
                     //buy
                     if(orderType == ITimeFlowCore.OrderType.buy){
                         if(newOrderInfo.state == ITimeFlowCore.OrderState.selling){
                             if(currentPrice <= price){
                                 remainAmount = newOrderInfo.amount - newOrderInfo.doneAmount;
+                                if(remainAmount > 0){
+                                    fee += getFee(marketId, remainAmount);
+                                }
                             }
                         }
                     }else{
@@ -310,14 +344,13 @@ contract TimeFlowHelper {
                     }
                     if(remainAmount> 0){   
                         waitTokenAmount += remainAmount;
-                        collateralTokenAmount += remainAmount * newOrderInfo.price;
+                        collateralTokenAmount += TimeFlowLibrary._getTotalCollateral(newOrderInfo.price , remainAmount);
                     }
                 }
             }
         }
         if(collateralTokenAmount > 0){
             if(orderType == ITimeFlowCore.OrderType.buy){
-                fee = getFee(marketId, collateralTokenAmount);
                 collateralTokenAmount = collateralTokenAmount * 2 - fee;
             }
         }
@@ -341,9 +374,9 @@ contract TimeFlowHelper {
                             newOrderInfo.state == ITimeFlowCore.OrderState.buying || 
                             newOrderInfo.state == ITimeFlowCore.OrderState.selling
                         ){
-                            uint256 remainAmount = newOrderInfo.amount - newOrderInfo.doneAmount;
+                            uint128 remainAmount = newOrderInfo.amount - newOrderInfo.doneAmount;
                             if(remainAmount >0){
-                                collateralTokenAmount += remainAmount * newOrderInfo.price;
+                                collateralTokenAmount += TimeFlowLibrary._getTotalCollateral(newOrderInfo.price , remainAmount);
                             }
                             newOrderInfo.state = ITimeFlowCore.OrderState.fail;
                         }
@@ -398,7 +431,7 @@ contract TimeFlowHelper {
                             newOrderInfo.state == ITimeFlowCore.OrderState.buying || 
                             newOrderInfo.state == ITimeFlowCore.OrderState.selling
                         ){
-                            collateralTokenAmount += newOrderInfo.amount * newOrderInfo.price;
+                            collateralTokenAmount += TimeFlowLibrary._getTotalCollateral(newOrderInfo.price , newOrderInfo.amount - newOrderInfo.doneAmount);
                         }
                     }
                 }
@@ -419,6 +452,7 @@ contract TimeFlowHelper {
             unchecked {
                 for(uint256 i; i< orderIds.length; i++){
                     ITimeFlowCore.OrderInfo memory newOrderInfo = getOrderInfo(marketId, orderIds[i]);
+                    uint256 thisTotalAmount = TimeFlowLibrary._getTotalCollateral(newOrderInfo.price, newOrderInfo.amount);
                     if(user == newOrderInfo.creator){
                         if(
                             newOrderInfo.orderType == ITimeFlowCore.OrderType.buy && 
@@ -432,7 +466,8 @@ contract TimeFlowHelper {
                             newOrderInfo.state == ITimeFlowCore.OrderState.done
                         ){
                             if(newOrderInfo.creatorWithdrawState == ZEROBYTES1){
-                                collateralTokenAmount += newOrderInfo.amount * newOrderInfo.price;
+                                collateralTokenAmount += thisTotalAmount;
+                                fee += getFee(marketId, thisTotalAmount);
                             }
                         }
                     }else if (user == newOrderInfo.trader){
@@ -441,7 +476,8 @@ contract TimeFlowHelper {
                             newOrderInfo.state == ITimeFlowCore.OrderState.done
                         ){
                             if(newOrderInfo.traderWithdrawState == ZEROBYTES1){
-                                collateralTokenAmount += newOrderInfo.amount * newOrderInfo.price;
+                                collateralTokenAmount += thisTotalAmount;
+                                fee += getFee(marketId, thisTotalAmount);
                             }
                         } else if(
                             newOrderInfo.orderType == ITimeFlowCore.OrderType.sell && 
@@ -457,7 +493,6 @@ contract TimeFlowHelper {
                 }
             }
         }
-        fee = getFee(marketId, collateralTokenAmount);
         collateralTokenAmount = collateralTokenAmount * 2 - fee;
     }
 
@@ -473,6 +508,7 @@ contract TimeFlowHelper {
             unchecked {
                 for(uint256 i; i< orderIds.length; i++){
                     ITimeFlowCore.OrderInfo memory newOrderInfo = getOrderInfo(marketId, orderIds[i]);
+                    uint256 thisTotalAmount = TimeFlowLibrary._getTotalCollateral(newOrderInfo.price, newOrderInfo.amount);
                     if(user == newOrderInfo.creator){
                         if(newOrderInfo.state == ITimeFlowCore.OrderState.found){
                             if(newOrderInfo.orderType == ITimeFlowCore.OrderType.buy){}
@@ -484,11 +520,11 @@ contract TimeFlowHelper {
                     }else{
                         revert("Invalid user");
                     }
-                    collateralTokenAmount += newOrderInfo.amount * newOrderInfo.price;
+                    collateralTokenAmount += thisTotalAmount;
+                    fee += getFee(marketId, thisTotalAmount);
                 }
             }
         }
-        fee = getFee(marketId, collateralTokenAmount);
         collateralTokenAmount = collateralTokenAmount * 2 - fee;
     }
 

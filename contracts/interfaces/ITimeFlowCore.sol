@@ -23,29 +23,29 @@ interface ITimeFlowCore {
         bytes1 traderWithdrawState;
         address trader;
         address creator;
-        uint64 amount;
-        uint64 doneAmount;
-        uint128 price;
+        uint64 price;
+        uint128 amount;
+        uint128 doneAmount;
         uint256 creationTime;
     }
 
     struct UserInfo{
-        uint64 buyDoneAmount;
-        uint64 sellDoneAmount;
+        uint128 buyDoneAmount;
+        uint128 sellDoneAmount;
         // uint256 collateralTokenAmount;
         uint256[] buyIdGroup;
         uint256[] sellIdGroup;
     }
 
     event CreateOrder(uint256 indexed id, address creator, uint256 total);
-    event MatchOrders(uint256[] indexed ids, OrderType thisOrderType);
-    event CancelOrders(uint256[] indexed ids);
-    event DepositeOrders(uint256[] indexed ids);
-    event RefundOrders(uint256[] indexed ids);
-    event WithdrawOrders(uint256[] indexed ids);
-    event WithdrawLiquidatedDamages(uint256[] indexed ids);
+    event MatchOrders(uint256[] ids, OrderType thisOrderType);
+    event CancelOrders(uint256[] ids);
+    event DepositeOrders(uint256[] ids);
+    event RefundOrders(uint256[] ids);
+    event WithdrawOrders(uint256[] ids);
+    event WithdrawLiquidatedDamages(uint256[] ids);
 
-    error InvalidPrice(uint128);
+    error InvalidPrice(uint64);
     error ZeroQuantity();
     error OrderAlreadyClose(uint256);
     error NotEnd(uint256);
@@ -53,16 +53,16 @@ interface ITimeFlowCore {
 
     function currentMarketId() external view returns(uint256);
     function orderId() external view returns(uint256);
-    function latestMaxBuyPrice() external view returns(uint128);
-    function latestMinSellPrice() external view returns(uint128);
-    function latestMaxDoneBuyPrice() external view returns(uint128);
-    function latestMaxDoneSellPrice() external view returns(uint128);
+    function latestMaxBuyPrice() external view returns(uint64);
+    function latestMinSellPrice() external view returns(uint64);
+    function latestMaxDoneBuyPrice() external view returns(uint64);
+    function latestMaxDoneSellPrice() external view returns(uint64);
 
     function getOrderInfo(uint256 thisOrderId) external view returns(OrderInfo memory);
 
     function getUserInfo(address user) external view returns(
-        uint64 thisBuyDoneAmount,
-        uint64 thisSellDoneAmount
+        uint128 thisBuyDoneAmount,
+        uint128 thisSellDoneAmount
     );
 
     function indexUserBuyId(address user, uint256 index) external view returns(uint256 buyId);

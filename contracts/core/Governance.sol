@@ -2,11 +2,12 @@
 pragma solidity ^0.8.23;
 
 import {IGovernance} from "../interfaces/IGovernance.sol";
-
+import {ITimeFlowFactory} from "../interfaces/ITimeFlowFactory.sol";
 contract Governance is IGovernance {
     
     address public owner;
     address public manager;
+    address timeFlowFactory;
     
     
     mapping(address => FeeInfo) private feeInfo;
@@ -38,6 +39,11 @@ contract Governance is IGovernance {
     }
 
     mapping(uint256 => MarketConfig) private marketConfig;
+
+    
+    
+    mapping(address => mapping(uint256 => bool)) private userJoinInfoState;
+    mapping(address => uint256[]) private userJoinInfoGroup;
 
     function changeOwner(address _newOwner) external onlyOwner {
         address oldOwner = owner;
@@ -74,6 +80,12 @@ contract Governance is IGovernance {
         marketConfig[_marketId].initializeState = true;
     }
 
+    function changeTimeFlowFactory(
+        address _timeFlowFactory
+    ) external onlyManager {
+        timeFlowFactory = _timeFlowFactory;
+    }
+
     function changeCollateral(
         uint256 _marketId, 
         address _collateral
@@ -88,6 +100,14 @@ contract Governance is IGovernance {
     ) external onlyManager {
         marketConfig[_marketId].waitToken = _waitToken;
         marketConfig[_marketId].endTime = _endTime + block.timestamp;
+    }
+    
+    function join(address user, uint256 marketId) external {
+        require(msg.sender == ITimeFlowFactory(timeFlowFactory).getMarketInfo(marketId).market, "Invalid market");
+        if(userJoinInfoState[user][marketId] == false){
+            userJoinInfoGroup[user].push(marketId);
+            userJoinInfoState[user][marketId] = true;
+        }
     }
 
     function _checkOwner() private view {
@@ -104,6 +124,14 @@ contract Governance is IGovernance {
 
     function getMarketConfig(uint256 marketId) external view returns(MarketConfig memory) {
         return marketConfig[marketId];
+    }
+    
+    function getUserJoinMarketLength(address user) public view returns(uint256 len) {
+        len = userJoinInfoGroup[user].length;
+    }
+
+    function indexUserJoinInfoGroup(address user, uint256 index) public view returns(uint256 marketId) {
+        marketId = userJoinInfoGroup[user][index];
     }
 
     

@@ -33,21 +33,21 @@ async function main() {
 
   let allAddresses = {};
 
-  // const testToken = await ethers.getContractFactory("TestToken");
-  // const USDT = await testToken.deploy(
-  //   "TimeFlow Test USDT",
-  //   "USDT"
-  // );
-  // const USDTAddress = await USDT.target;
-  const USDTAddress = "0xFA8B026CaA2d1d73CE8A9f19613364FCa9440411";
+//   const testToken = await ethers.getContractFactory("TestToken");
+//   const USDT = await testToken.deploy(
+//     "TimeFlow Test USDT",
+//     "USDT"
+//   );
+//   const USDTAddress = await USDT.target;
+  const USDTAddress = "0xB3aDc46252C2abd33903854A6D5bD37500eAD989";
   console.log("USDT Address:", USDTAddress);
 
-  // const TFPTT = await testToken.deploy(
-  //   "TimeFlow Test Pharos",
-  //   "TF-PTT"
-  // );
-  // const TFPTTAddress = await TFPTT.target;
-  const TFPTTAddress = "0xa5281122370d997c005B2313373Fa3CAf6A48Ae0";
+//   const TFPTT = await testToken.deploy(
+//     "TimeFlow Test Pharos",
+//     "TF-PTT"
+//   );
+//   const TFPTTAddress = await TFPTT.target;
+  const TFPTTAddress = "0xfbF60F3cc210f7931c3c15920CC71A03C0B4dAc3";
   console.log("TFPTT Address:", TFPTTAddress);
 
   // const dustCore = await ethers.getContractFactory("DustCore");
@@ -57,7 +57,7 @@ async function main() {
   //   {gasLimit: 4500000}
   // );
   // const DustCoreAddress = await DustCore.target;
-  const DustCoreAddress = "0x9096DC35B9A851134cb2f82eD6c7cFEE08D1f024";
+  const DustCoreAddress = "0xda724A56cfB7945Dbf2AABe16cb276802f91976b";
   const DustCore = new ethers.Contract(DustCoreAddress, DustCoreABI.abi, owner);
   console.log("DustCore Address:", DustCoreAddress);
 
@@ -70,7 +70,7 @@ async function main() {
   //   {gasLimit: 3500000}
   // );
   // const GovernanceAddress = await Governance.target;
-  const GovernanceAddress = "0x55114d8eF1C57dc96481008D70883Ce2A8153C03";
+  const GovernanceAddress = "0xbAA41eAe344aff3BADDe497120c71470846B4E06";
   const Governance = new ethers.Contract(
     GovernanceAddress,
     GovernanceABI.abi,
@@ -80,7 +80,7 @@ async function main() {
 
   // const setMarketConfig = await Governance.setMarketConfig(
   //   0,
-  //   200000n,
+  //   1000000n,
   //   TFPTTAddress,
   //   {gasLimit: 100000}
   // )
@@ -91,11 +91,9 @@ async function main() {
   console.log("getMarketConfig:", getMarketConfig);
 
   // const timeFlowFactory = await ethers.getContractFactory("TimeFlowFactory");
-  // const TimeFlowFactory = await timeFlowFactory.deploy(GovernanceAddress, {
-  //   gasLimit: 6000000,
-  // });
+  // const TimeFlowFactory = await timeFlowFactory.deploy(GovernanceAddress);
   // const TimeFlowFactoryAddress = await TimeFlowFactory.target;
-  const TimeFlowFactoryAddress = "0xc8CDf868157e0a14B1e65B917cf4686E77556A08";
+  const TimeFlowFactoryAddress = "0x83bEde1230B62c1f1bA50c2BC673D94bDE45616F";
   const TimeFlowFactory = new ethers.Contract(TimeFlowFactoryAddress, TimeFlowFactoryABI.abi, owner);
   console.log("TimeFlowFactory Address:", TimeFlowFactoryAddress);
 
@@ -103,10 +101,10 @@ async function main() {
   // const TimeFlowHelper = await timeFlowHelper.deploy(
   //   GovernanceAddress,
   //   TimeFlowFactoryAddress,
-  //   { gasLimit: 5000000 }
+  //   {gasLimit: 5000000}
   // );
   // const TimeFlowHelperAddress = await TimeFlowHelper.target;
-  const TimeFlowHelperAddress = "0x7Bc0B773e4E3c3f3d5fA39897dbFeb4c27D4d6b7";
+  const TimeFlowHelperAddress = "0x1D84B973697da10E370A4f1e764cD5e0605e6080";
   const TimeFlowHelper = new ethers.Contract(
     TimeFlowHelperAddress,
     TimeFlowHelperABI.abi,
@@ -139,52 +137,48 @@ async function main() {
   // const initMarketConfigTx = await initMarketConfig.wait();
   // console.log("initMarketConfigTx:", initMarketConfigTx.hash);
 
-  // const changeCollateral = await Governance.changeCollateral(
-  //   0,
-  //   DustCoreAddress,
-  //   {
-  //     gasLimit: 100000,
-  //   }
-  // );
-  // const changeCollateralTx = await changeCollateral.wait();
-  // console.log("changeCollateral:", changeCollateralTx.hash);
+  const changeCollateral = await Governance.changeCollateral(
+    0,
+    DustCoreAddress,
+    {
+      gasLimit: 100000,
+    }
+  );
+  const changeCollateralTx = await changeCollateral.wait();
+  console.log("changeCollateral:", changeCollateralTx.hash);
 
-  // const changeCollateral2 = await Governance.changeCollateral(
-  //     1,
-  //     DustCoreAddress,
-  //     {
-  //       gasLimit: 100000,
-  //     }
-  //   );
-  //   const changeCollateral2Tx = await changeCollateral2.wait();
-  //   console.log("changeCollateral2:", changeCollateral2Tx.hash);
+  const changeCollateral2 = await Governance.changeCollateral(
+    1,
+    DustCoreAddress,
+    {
+      gasLimit: 100000,
+    }
+  );
+  const changeCollateral2Tx = await changeCollateral2.wait();
+  console.log("changeCollateral2:", changeCollateral2Tx.hash);
 
-  // const initialize = await DustCore.initialize([95], [10], [USDTAddress], {
-  //   gasLimit: 100000,
-  // });
-  // const initializeTx = await initialize.wait();
-  // console.log("initialize:", initializeTx.hash);
+  const initialize = await DustCore.initialize([95], [10], [USDTAddress], {
+    gasLimit: 100000,
+  });
+  const initializeTx = await initialize.wait();
+  console.log("initialize:", initializeTx.hash);
 
-  // const createMarket1 = await TimeFlowFactory.createMarket({
-  //   gasLimit: 5200000n,
-  // });
+  // const createMarket1 = await TimeFlowFactory.createMarket({ gasLimit: 5200000n });
   // const createMarket1Tx = await createMarket1.wait();
   // console.log("createMarket1 tx:", createMarket1Tx.hash);
+
+  // const createMarket2 = await TimeFlowFactory.createMarket({ gasLimit: 5200000n });
+  // const createMarket2Tx = await createMarket2.wait();
+  // console.log("createMarket2 tx:", createMarket2Tx.hash);
+
+  const marketId = await TimeFlowFactory.marketId();
+  console.log("marketId:", marketId);
 
   const getMarketInfo1 = await TimeFlowFactory.getMarketInfo(0n);
   console.log("getMarketInfo1:", getMarketInfo1);
 
-  // const createMarket2 = await TimeFlowFactory.createMarket({
-  //   gasLimit: 5200000n,
-  // });
-  // const createMarket2Tx = await createMarket2.wait();
-  // console.log("createMarket2 tx:", createMarket2Tx.hash);
-
   const getMarketInfo2 = await TimeFlowFactory.getMarketInfo(1n);
   console.log("getMarketInfo2:", getMarketInfo2);
-
-  const marketId = await TimeFlowFactory.marketId();
-  console.log("lastest marketId:", marketId);
 
   // const getMarketInfo3 = await TimeFlowFactory.getMarketInfo(2n);
   // console.log("getMarketInfo3:", getMarketInfo3);
@@ -202,9 +196,7 @@ async function main() {
   );
   console.log("getExpectedAmount:", getExpectedAmount);
 
-  const getDustCollateralInfo = await DustCore.getDustCollateralInfo(
-    USDTAddress
-  );
+  const getDustCollateralInfo = await DustCore.getDustCollateralInfo(USDTAddress);
   console.log("getDustCollateralInfo:", getDustCollateralInfo);
 
   async function Approve(token, spender, amount) {
@@ -228,7 +220,11 @@ async function main() {
     ethers.parseEther("1000000000")
   );
 
-  await Approve(USDTAddress, DustCoreAddress, ethers.parseEther("1000000000"));
+  await Approve(
+    USDTAddress,
+    DustCoreAddress,
+    ethers.parseEther("1000000000")
+  );
 
   // const initMarketConfig2 = await Governance.initMarketConfig(
   //     1,
@@ -238,9 +234,9 @@ async function main() {
   //     {gasLimit: 250000}
   //   );
   //   const initMarketConfig2Tx = await initMarketConfig2.wait();
-  //   console.log("initMarketConfig2:", initMarketConfig2Tx.hash);
+  //   console.log("initMarketConfig2Tx:", initMarketConfig2Tx.hash);
 
-  // const setMarketConfig2 = await Governance.setMarketConfig(
+  //   const setMarketConfig2 = await Governance.setMarketConfig(
   //     1,
   //     100000n,
   //     TFPTTAddress,
@@ -249,38 +245,38 @@ async function main() {
   //   const setMarketConfig2Tx = await setMarketConfig2.wait();
   //   console.log("setMarketConfig2Tx:", setMarketConfig2Tx.hash);
 
-  const mintDust = await DustCore.mintDust(
-    USDTAddress,
-    10000n * 10n ** 18n,
-    1000000n,
-    {gasLimit: 1200000}
-  );
-  const mintDustTx = await mintDust.wait();
-  console.log("mintDust tx:", mintDustTx.hash);
+  // const mintDust = await DustCore.mintDust(
+  //   USDTAddress, 
+  //   10000n * 10n ** 18n,
+  //   1000000n,
+  //   {gasLimit: 1200000}
+  // );
+  // const mintDustTx = await mintDust.wait();
+  // console.log("mintDust tx:", mintDustTx.hash);
 
   const OrderType = {
     buy: 0,
     sell: 1,
   };
 
-  const putTrade = await Market.putTrade(
-    OrderType.sell,
-    50n * 10n ** 18n,
-    2n * 10n ** 5n,
-    { gasLimit: 500000 }
-  );
-  const putTradeTx = await putTrade.wait();
-  console.log("putTradeTx:", putTradeTx.hash);
+  // const putTrade = await Market.putTrade(
+  //   OrderType.sell,
+  //   50n * 10n ** 18n,
+  //   1n * 10n ** 6n,
+  //   { gasLimit: 500000 }
+  // );
+  // const putTradeTx = await putTrade.wait();
+  // console.log("putTradeTx:", putTradeTx.hash);
 
-  const matchTrade = await Market.matchTrade(
-    OrderType.buy,
-    50n * 10n ** 18n,
-    2n * 10n ** 5n,
-    [0],
-    { gasLimit: 500000 }
-  );
-  const matchTradeTx = await matchTrade.wait();
-  console.log("matchTradeTx:", matchTradeTx.hash);
+  // const matchTrade = await Market.matchTrade(
+  //   OrderType.buy,
+  //   50n * 10n ** 18n,
+  //   1n * 10n ** 6n,
+  //   [0],
+  //   {gasLimit: 500000}
+  // );
+  // const matchTradeTx = await matchTrade.wait();
+  // console.log("matchTradeTx:", matchTradeTx.hash);
 
   //
 
@@ -291,8 +287,8 @@ async function main() {
     (config.TimeFlowFactory = TimeFlowFactoryAddress),
     (config.TimeFlowHelper = TimeFlowHelperAddress);
   (config.market0 = getMarketInfo1[0]),
-    (config.market1 = getMarketInfo2[0]),
-    // (config.market2 = getMarketInfo3[0]),
+  (config.market1 = getMarketInfo2[0]),
+  // (config.market2 = getMarketInfo3[0]),
     (config.updateTime = new Date().toISOString());
 
   const filePath = "./deployedAddress.json";

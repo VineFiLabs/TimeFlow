@@ -2,6 +2,14 @@
 pragma solidity ^0.8.23;
 
 library TimeFlowLibrary {
+
+    function _getTotalCollateral(
+        uint64 price,
+        uint128 amount
+    ) internal pure returns (uint256 totalCollateral){
+        totalCollateral = price * amount / (10 ** 6);
+    }
+
     function _fee(
         uint256 total,
         uint8 tokenDecimals
@@ -19,7 +27,7 @@ library TimeFlowLibrary {
         } else if (total >= 10000 * 10 ** tokenDecimals) {
             _thisFee = (total / 1000) * 50;
         } else {
-            revert("Invalid quantity");
+            
         }
     }
 }

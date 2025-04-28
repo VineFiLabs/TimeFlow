@@ -5,10 +5,10 @@ require('dotenv').config();
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
   networks: { 
-    Pharos: {
+    pharos: {
       url: process.env.Pharos_Devnet_Rpc,
       accounts: [process.env.PRIVATE_KEY1]
-    },
+    }
   },
   solidity: {
     compilers:[

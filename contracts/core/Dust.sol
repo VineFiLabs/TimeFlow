@@ -201,6 +201,7 @@ abstract contract Dust is Context, IERC20, IERC20Metadata, IERC20Errors {
             revert ERC20InvalidReceiver(address(0));
         }
         _update(address(0), account, value);
+        return true;
     }
 
     /**
@@ -211,11 +212,12 @@ abstract contract Dust is Context, IERC20, IERC20Metadata, IERC20Errors {
      *
      * NOTE: This function is not virtual, {_update} should be overridden instead
      */
-    function _burn(address account, uint256 value) internal {
+    function _burn(address account, uint256 value) internal returns(bool) {
         if (account == address(0)) {
             revert ERC20InvalidSender(address(0));
         }
         _update(account, address(0), value);
+        return true;
     }
 
     /**

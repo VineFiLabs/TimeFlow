@@ -28,6 +28,7 @@ interface IDustCore{
         uint64 endTime;
         uint128 amount;
         uint128 doneAmount;
+        uint256 lastestWithdrawTime;
     } 
     
     event Initialize(bytes1 state);

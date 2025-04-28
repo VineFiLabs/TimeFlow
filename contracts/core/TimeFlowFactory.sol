@@ -7,7 +7,7 @@ import {TimeFlowCore} from "./TimeFlowCore.sol";
 contract TimeFlowFactory is ITimeFlowFactory {
 
     uint256 public marketId;
-    address public governance;
+    address private governance;
 
     constructor(address _governance) {
         governance = _governance;
