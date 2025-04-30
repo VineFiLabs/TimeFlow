@@ -91,46 +91,50 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
                 uint128 remainAmount;
                 uint64 currentPrice = orderInfo[orderIds[i]].price;
                 address creator = orderInfo[orderIds[i]].creator;
-                //buy
-                if(_orderType == OrderType.buy){
-                    if(orderInfo[orderIds[i]].state == OrderState.selling){
-                        if(currentPrice <= _price){
-                            remainAmount = orderInfo[orderIds[i]].amount - orderInfo[orderIds[i]].doneAmount;
-                            if(remainAmount > 0){
-                                userInfo[msg.sender].buyIdGroup.push(orderIds[i]);
-                                userInfo[creator].sellDoneAmount += remainAmount;
-                                totalFee += TimeFlowLibrary._fee(remainAmount, _collateralDecimals(collateral));
-                                if(currentPrice > latestMaxDoneSellPrice){
-                                    latestMaxDoneSellPrice = currentPrice;
+                if(msg.sender != creator){
+                    //buy
+                    if(_orderType == OrderType.buy){
+                        if(orderInfo[orderIds[i]].state == OrderState.selling){
+                            if(currentPrice <= _price){
+                                remainAmount = orderInfo[orderIds[i]].amount - orderInfo[orderIds[i]].doneAmount;
+                                if(remainAmount > 0){
+                                    userInfo[msg.sender].buyIdGroup.push(orderIds[i]);
+                                    userInfo[creator].sellDoneAmount += remainAmount;
+                                    totalFee += TimeFlowLibrary._fee(remainAmount, _collateralDecimals(collateral));
+                                    if(currentPrice > latestMaxDoneSellPrice){
+                                        latestMaxDoneSellPrice = currentPrice;
+                                    }
                                 }
                             }
                         }
+                    }else{
+                        //sell
+                        if(orderInfo[orderIds[i]].state == OrderState.buying){
+                            if(currentPrice >= _price){
+                                remainAmount = orderInfo[orderIds[i]].amount - orderInfo[orderIds[i]].doneAmount;
+                                if(remainAmount > 0){
+                                    userInfo[msg.sender].sellIdGroup.push(orderIds[i]);
+                                    userInfo[creator].buyDoneAmount += remainAmount;
+                                    if(currentPrice > latestMaxDoneBuyPrice){
+                                        latestMaxDoneBuyPrice = currentPrice;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if(remainAmount> 0){   
+                        if(remainAmount > _amount - waitTokenAmount){
+                            orderInfo[orderIds[i]].doneAmount += _amount - waitTokenAmount;
+                        }else{
+                            orderInfo[orderIds[i]].doneAmount += remainAmount;
+                            orderInfo[orderIds[i]].state = OrderState.found;
+                        }
+                        orderInfo[orderIds[i]].trader = msg.sender;
+                        waitTokenAmount += remainAmount;
+                        collateralTokenAmount += TimeFlowLibrary._getTotalCollateral(currentPrice, remainAmount);
                     }
                 }else{
-                    //sell
-                    if(orderInfo[orderIds[i]].state == OrderState.buying){
-                        if(currentPrice >= _price){
-                            remainAmount = orderInfo[orderIds[i]].amount - orderInfo[orderIds[i]].doneAmount;
-                            if(remainAmount > 0){
-                                userInfo[msg.sender].sellIdGroup.push(orderIds[i]);
-                                userInfo[creator].buyDoneAmount += remainAmount;
-                                if(currentPrice > latestMaxDoneBuyPrice){
-                                    latestMaxDoneBuyPrice = currentPrice;
-                                }
-                            }
-                        }
-                    }
-                }
-                if(remainAmount> 0){   
-                    if(remainAmount > _amount - waitTokenAmount){
-                        orderInfo[orderIds[i]].doneAmount += _amount - waitTokenAmount;
-                    }else{
-                        orderInfo[orderIds[i]].doneAmount += remainAmount;
-                        orderInfo[orderIds[i]].state = OrderState.found;
-                    }
-                    orderInfo[orderIds[i]].trader = msg.sender;
-                    waitTokenAmount += remainAmount;
-                    collateralTokenAmount += TimeFlowLibrary._getTotalCollateral(currentPrice, remainAmount);
+                    revert InvalidUser();
                 }
             }
         }
