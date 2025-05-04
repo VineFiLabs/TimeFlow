@@ -27,7 +27,7 @@ A decentralized pre-market trading platform based on the RWA stablecoin DUST.
 | **Order Cancellation** (if market open)      | 0.5%     |
 
 ## Architecture
-![TimeFlow Architecture](https://timeflow-docs.vercel.app/resources/TimeFlow-Architecture.png)
+![TimeFlow Architecture](https://timeflow-docs.vercel.app/docs/architecture)
 
 - **Smart Contracts**: Core on-chain logic for order management and settlement.
 - **Off-Chain Modules**: Matching engine, auction algorithms, and monitoring services.
