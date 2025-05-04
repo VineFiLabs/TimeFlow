@@ -33,9 +33,9 @@ A decentralized pre-market trading platform based on the RWA stablecoin DUST.
 - **RWA Integration**: External services to mint and redeem DUST against real-world assets.
 
 ## Future
-1.**Optimization**: Improve the functions of the RWA stablecoin DUST, introduce lending into DUST, and use DUST as the mainstream yield aggregator for RWA stablecoins.
-2.**Extension**: List TimeFlow Payment on the apple store and open the SDK access and documentation;
-3**Outlook**: Explore the application of Pre-Market in futures trading, for example: trading the futures of ETH for 2026.1.1
+1. Improve the functions of the RWA stablecoin DUST, introduce lending into DUST, and use DUST as the mainstream yield aggregator for RWA stablecoins;  
+2. List TimeFlow Payment on the apple store and open the SDK access and documentation;  
+3. Explore the application of Pre-Market in futures trading, for example: trading the futures of ETH for 2026.1.1.  
 
 ## Getting Started
 ### Prerequisites
