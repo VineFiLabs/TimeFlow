@@ -27,17 +27,15 @@ A decentralized pre-market trading platform based on the RWA stablecoin DUST.
 | **Order Cancellation** (if market open)      | 0.5%     |
 
 ## Architecture
-![TimeFlow Architecture]
-
+- [TimeFlow Architecture] <https://timeflow-docs.vercel.app/docs/architecture>
 - **Smart Contracts**: Core on-chain logic for order management and settlement.
 - **Off-Chain Modules**: Matching engine, auction algorithms, and monitoring services.
 - **RWA Integration**: External services to mint and redeem DUST against real-world assets.
-- <https://timeflow-docs.vercel.app/docs/architecture>
 
 ## Future
-1.Improve the functions of the RWA stablecoin DUST, introduce lending into DUST, and use DUST as the mainstream yield aggregator for RWA stablecoins.
-2. List TimeFlow Payment on the apple store and open the SDK access and documentation;
-3. Explore the application of Pre-Market in futures trading, for example: trading the futures of ETH for 2026.1.1
+- 1.Improve the functions of the RWA stablecoin DUST, introduce lending into DUST, and use DUST as the mainstream yield aggregator for RWA stablecoins.
+- 2. List TimeFlow Payment on the apple store and open the SDK access and documentation;
+- 3. Explore the application of Pre-Market in futures trading, for example: trading the futures of ETH for 2026.1.1
 
 ## Getting Started
 ### Prerequisites
