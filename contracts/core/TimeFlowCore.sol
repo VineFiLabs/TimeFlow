@@ -8,6 +8,12 @@ import {TimeFlowLibrary} from "../libraries/TimeFlowLibrary.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+/**
+* @notice This is the pre-market function of the TimeFlow core disk
+* @author VineLabs member 0xlive (https://github.com/VineFiLabs)
+*/
+
 contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
     using SafeERC20 for IERC20;
 
@@ -42,6 +48,15 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         _;
     }
 
+    /**
+    * @dev Create pre-market order
+    * @notice The total amount of the mortgaged property shall be >= 10$,
+    * Orders can only be created 12 hours before the market closes
+    * @param _orderType OrderType: An enumeration of the order type
+    * @param _amount The number of pre-market tokens that need to be purchased or sold
+    * @param _price The price of the collateral and the pre-market token (requiring 10 ** 6), 
+    * for example, ETH: DUST, the price is 1800 DUST, and the passed value is 1800 * 10 ** 6
+     */
     function putTrade(
         OrderType _orderType,
         uint128 _amount,
@@ -74,7 +89,17 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         emit CreateOrder(orderId, msg.sender, total);
         orderId++;
     }
-
+    
+    /**
+    * @dev Batch match market orders
+    * @notice The amount of matches should be > 0,
+    * Orders can only be matched 12 hours before the market ends
+    * @param _orderType OrderType: An enumeration of the order type
+    * @param _amount The number of pre-market tokens that need to be purchased or sold
+    * @param _price The price of the collateral and the pre-market token (requiring 10 ** 6), 
+    * for example, ETH: DUST, the price is 1800 DUST, and the passed value is 1800 * 10 ** 6
+    * @param orderIds The matching order array
+     */
     function matchTrade(
         OrderType _orderType,
         uint128 _amount,
@@ -151,7 +176,13 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         
     }
 
-    function Cancel(uint256[] calldata orderIds) external nonReentrant {
+    /**
+    * @dev Batch cancellation of orders
+    * @notice The amount of cancel should be > 0,
+    * Cancellations can only be made 12 hours before the market closes
+    * @param orderIds The cancel order array
+     */
+    function cancel(uint256[] calldata orderIds) external nonReentrant {
         _checkOrderCloseState();
         uint256 cancelCollateralTokenAmount;
         unchecked {
@@ -176,6 +207,12 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         emit CancelOrders(orderIds);
     }
 
+    /**
+    * @dev Batch deposit pre-market tokens
+    * @notice Pre-market token quantity should be > 0,
+    * It can only be deposited before the market ends
+    * @param orderIds The deposite order array
+     */
     function deposite(uint256[] calldata orderIds) external nonReentrant {
         uint256 endTime = _getMarketConfig().endTime;
         if(block.timestamp >= endTime){revert OrderAlreadyClose(block.timestamp);}
@@ -202,7 +239,13 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         IERC20(waitToken).safeTransferFrom(msg.sender, address(this), waitTokenAmount);
         emit DepositeOrders(orderIds);
     }
-
+    
+     /**
+    * @dev Batch refund
+    * @notice The refund quantity should be > 0,
+    * Only after the market ends can unmatched orders be refunded
+    * @param orderIds The refund order array
+     */
     function refund(uint256[] calldata orderIds) external nonReentrant {
         _checkOrderEndState();
         address collateral = _getMarketConfig().collateral;
@@ -226,7 +269,14 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         IERC20(collateral).safeTransfer(msg.sender, refundAmount);
         emit RefundOrders(orderIds);
     }
-
+            
+    /**
+    * @dev Batch extract completed orders
+    * @notice The withdraw quantity should be > 0,
+    * Completed orders after the market ends
+    * @param OrderType Order type enumeration
+    * @param orderIds The withdraw order array
+     */
     function withdraw(OrderType orderType, uint256[] calldata orderIds) external nonReentrant {
         _checkOrderEndState();
         address waitToken = _getMarketConfig().waitToken;
@@ -299,6 +349,12 @@ contract TimeFlowCore is ReentrancyGuard, ITimeFlowCore {
         emit WithdrawOrders(orderIds);
     }
 
+    /**
+    * @dev The buyer extracts the defaulted orders in bulk
+    * @notice The withdraw quantity should be > 0,
+    * After the market ends, the seller has no orders for staking the pre-sale token
+    * @param orderIds The withdraw order array
+     */
     function withdrawLiquidatedDamages(uint256[] calldata orderIds) external {
         _checkOrderEndState();
         address collateral = _getMarketConfig().collateral;

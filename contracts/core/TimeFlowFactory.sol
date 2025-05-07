@@ -4,6 +4,11 @@ pragma solidity ^0.8.23;
 import {ITimeFlowFactory} from "../interfaces/ITimeFlowFactory.sol";
 import {IGovernance} from "../interfaces/IGovernance.sol";
 import {TimeFlowCore} from "./TimeFlowCore.sol";
+
+/**
+* @notice This is the factory of the core market of TimeFlow
+* @author VineLabs member 0xlive (https://github.com/VineFiLabs)
+*/
 contract TimeFlowFactory is ITimeFlowFactory {
 
     uint256 public marketId;
@@ -15,6 +20,9 @@ contract TimeFlowFactory is ITimeFlowFactory {
 
     mapping(uint256 => MarketInfo) private marketInfo;
 
+    /**
+    * @dev Only manager can create the pre-market
+     */
     function createMarket() external {
         address currentManager = IGovernance(governance).manager();
         require(msg.sender == currentManager);

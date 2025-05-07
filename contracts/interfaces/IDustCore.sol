@@ -24,6 +24,7 @@ interface IDustCore{
         FlowWay way;
         address sender;
         address receiver;
+        address flowToken;
         uint64 startTime;
         uint64 endTime;
         uint128 amount;

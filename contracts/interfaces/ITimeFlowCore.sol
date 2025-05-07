@@ -32,7 +32,6 @@ interface ITimeFlowCore {
     struct UserInfo{
         uint128 buyDoneAmount;
         uint128 sellDoneAmount;
-        // uint256 collateralTokenAmount;
         uint256[] buyIdGroup;
         uint256[] sellIdGroup;
     }
